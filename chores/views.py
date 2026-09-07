@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 
 from .forms import MemberCreateForm, MemberUpdateForm, TaskForm
-from .models import ChecklistItem, HouseholdMembership, Task, User
+from .models import ChecklistItem, Completion, HouseholdMembership, Task, TaskOccurrence, User
 
 
 def owner_required(view):
@@ -205,3 +205,16 @@ def checklist_item_update(request, membership, task_id, item_id):
 		item.completed = request.POST['completed'].lower() in ('1', 'true', 'yes')
 	item.save()
 	return JsonResponse({'id': item.pk, 'text': item.text, 'position': item.position, 'completed': item.completed})
+
+
+@household_required
+@require_http_methods(['POST'])
+def occurrence_complete(request, membership, occurrence_id):
+	occurrence = get_object_or_404(TaskOccurrence, pk=occurrence_id, task__household=membership.household)
+	try:
+		completion = Completion(occurrence=occurrence, user=request.user)
+		completion.full_clean()
+		completion = Completion.record(occurrence, request.user)
+	except ValidationError as error:
+		return JsonResponse({'error': error.message_dict if hasattr(error, 'message_dict') else error.messages}, status=400)
+	return JsonResponse({'id': completion.pk, 'completed': occurrence.is_complete}, status=201)

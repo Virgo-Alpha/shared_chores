@@ -403,6 +403,11 @@ class CompletionTest(TestCase):
 		with self.assertRaises(ValidationError):
 			Completion(occurrence=self.occurrence, user=outsider).full_clean()
 
+	def test_completion_action_is_idempotent_and_marks_occurrence(self):
+		self.assertEqual(Completion.record(self.occurrence, self.first_user).pk, Completion.record(self.occurrence, self.first_user).pk)
+		self.assertEqual(Completion.objects.filter(occurrence=self.occurrence, user=self.first_user).count(), 1)
+		self.assertTrue(self.occurrence.is_complete)
+
 
 class ProofAndApprovalTest(TestCase):
 	def setUp(self):

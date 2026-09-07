@@ -15,4 +15,5 @@ urlpatterns = [
 	path('calendar/', views.calendar_view, name='calendar'),
 	path('tasks/<int:task_id>/checklist/', views.checklist_collection, name='checklist-collection'),
 	path('tasks/<int:task_id>/checklist/<int:item_id>/', views.checklist_item_update, name='checklist-item-update'),
+	path('occurrences/<int:occurrence_id>/complete/', views.occurrence_complete, name='occurrence-complete'),
 ]

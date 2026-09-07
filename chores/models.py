@@ -316,6 +316,14 @@ class Completion(models.Model):
 	def task(self):
 		return self.occurrence.task
 
+	@classmethod
+	def record(cls, occurrence, user):
+		completion, _ = cls.objects.get_or_create(occurrence=occurrence, user=user)
+		if occurrence.is_complete and occurrence.completed_at is None:
+			occurrence.completed_at = completion.completed_at
+			occurrence.save(update_fields=['completed_at'])
+		return completion
+
 
 class CompletionProof(models.Model):
 	completion = models.OneToOneField(Completion, on_delete=models.CASCADE, related_name='proof')
