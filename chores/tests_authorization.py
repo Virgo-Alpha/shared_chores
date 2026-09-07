@@ -1,6 +1,8 @@
 from django.test import TestCase
 
-from .models import Household, HouseholdMembership, Task, User
+from datetime import date
+
+from .models import Completion, Household, HouseholdMembership, NotificationPreference, Task, TaskAssignment, TaskOccurrence, User
 
 
 class AuthorizationRegressionTest(TestCase):
@@ -26,3 +28,18 @@ class AuthorizationRegressionTest(TestCase):
 		HouseholdMembership.objects.create(user=user, household=other)
 		self.client.force_login(user)
 		self.assertEqual(self.client.get(f'/tasks/{self.task.pk}/').status_code, 404)
+
+	def test_other_household_cannot_access_completion_or_preferences(self):
+		occurrence = TaskOccurrence.objects.create(task=self.task, scheduled_date=date(2026, 9, 7))
+		TaskAssignment.objects.create(task=self.task, user=self.owner)
+		completion = Completion.objects.create(occurrence=occurrence, user=self.owner)
+		other = Household.objects.create(name='Other Protected Home')
+		other_user = User.objects.create_user('other-protected@example.com', 'password')
+		HouseholdMembership.objects.create(user=other_user, household=other)
+		self.client.force_login(other_user)
+		self.assertEqual(self.client.post(f'/occurrences/{occurrence.pk}/complete/').status_code, 404)
+		self.assertEqual(self.client.post(f'/completions/{completion.pk}/proof/', {'note': 'No'}).status_code, 404)
+		self.assertEqual(self.client.post(f'/completions/{completion.pk}/approval/', {'status': 'APPROVED'}).status_code, 404)
+		self.assertEqual(self.client.get('/notification-preferences/').status_code, 200)
+		self.assertTrue(NotificationPreference.objects.filter(user=other_user).exists())
+		self.assertFalse(NotificationPreference.objects.filter(user=self.owner).exists())
