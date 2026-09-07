@@ -12,4 +12,5 @@ urlpatterns = [
 	path('tasks/<int:task_id>/claim/', views.task_claim, name='task-claim'),
 	path('dashboard/', views.personal_dashboard, name='personal-dashboard'),
 	path('board/', views.household_board, name='household-board'),
+	path('calendar/', views.calendar_view, name='calendar'),
 ]

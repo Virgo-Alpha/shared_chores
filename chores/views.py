@@ -161,3 +161,13 @@ def household_board(request, membership):
 		{'id': task.id, 'title': task.title, 'assignees': [a.user.email for a in task.assignments.all()]}
 		for task in tasks.distinct()
 	]})
+
+
+@household_required
+@require_http_methods(['GET'])
+def calendar_view(request, membership):
+	tasks = Task.objects.filter(household=membership.household).exclude(due_date__isnull=True)
+	return JsonResponse({'events': [
+		{'id': task.id, 'title': task.title, 'date': task.due_date.isoformat(), 'time': task.due_time.isoformat() if task.due_time else None}
+		for task in tasks.order_by('due_date', 'due_time')
+	]})
