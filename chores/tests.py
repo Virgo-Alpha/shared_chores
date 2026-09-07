@@ -349,6 +349,26 @@ class ChecklistItemTest(TestCase):
 		first.save(update_fields=['completed'])
 		self.assertFalse(ChecklistItem.objects.get(pk=first.pk).completed)
 
+	def test_checklist_endpoints_create_edit_reorder_and_complete(self):
+		household = Household.objects.create(name='Checklist API Home')
+		user = User.objects.create_user('checklist-api@example.com', 'password')
+		HouseholdMembership.objects.create(user=user, household=household)
+		task = Task.objects.create(household=household, category=household.categories.get(name='Cleaning'), title='API checklist', type=Task.Type.CHORE)
+		self.client.force_login(user)
+		created = self.client.post(f'/tasks/{task.pk}/checklist/', {'text': 'Wipe counters', 'position': 2})
+		self.assertEqual(created.status_code, 201)
+		item_id = created.json()['id']
+		updated = self.client.post(f'/tasks/{task.pk}/checklist/{item_id}/', {'text': 'Clean counters', 'position': 1, 'completed': 'true'})
+		self.assertEqual(updated.json()['completed'], True)
+		self.assertEqual(self.client.get(f'/tasks/{task.pk}/checklist/').json()['items'][0]['position'], 1)
+
+	def test_parent_deletion_cascades_checklist_items(self):
+		household = Household.objects.create(name='Checklist Delete Home')
+		task = Task.objects.create(household=household, category=household.categories.get(name='Cleaning'), title='Delete checklist', type=Task.Type.CHORE)
+		item = ChecklistItem.objects.create(task=task, text='Remove me')
+		task.delete()
+		self.assertFalse(ChecklistItem.objects.filter(pk=item.pk).exists())
+
 
 class CompletionTest(TestCase):
 	def setUp(self):

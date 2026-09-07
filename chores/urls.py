@@ -13,4 +13,6 @@ urlpatterns = [
 	path('dashboard/', views.personal_dashboard, name='personal-dashboard'),
 	path('board/', views.household_board, name='household-board'),
 	path('calendar/', views.calendar_view, name='calendar'),
+	path('tasks/<int:task_id>/checklist/', views.checklist_collection, name='checklist-collection'),
+	path('tasks/<int:task_id>/checklist/<int:item_id>/', views.checklist_item_update, name='checklist-item-update'),
 ]

@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 
 from .forms import MemberCreateForm, MemberUpdateForm, TaskForm
-from .models import HouseholdMembership, Task, User
+from .models import ChecklistItem, HouseholdMembership, Task, User
 
 
 def owner_required(view):
@@ -171,3 +171,37 @@ def calendar_view(request, membership):
 		{'id': task.id, 'title': task.title, 'date': task.due_date.isoformat(), 'time': task.due_time.isoformat() if task.due_time else None}
 		for task in tasks.order_by('due_date', 'due_time')
 	]})
+
+
+@household_required
+@require_http_methods(['GET', 'POST'])
+def checklist_collection(request, membership, task_id):
+	task = get_object_or_404(Task, pk=task_id, household=membership.household)
+	if request.method == 'POST':
+		text = request.POST.get('text', '').strip()
+		if not text:
+			return JsonResponse({'error': 'Checklist text is required.'}, status=400)
+		item = ChecklistItem.objects.create(
+			task=task,
+			text=text,
+			position=int(request.POST.get('position', task.checklist_items.count())),
+		)
+		return JsonResponse({'id': item.pk, 'text': item.text, 'position': item.position}, status=201)
+	return JsonResponse({'items': [
+		{'id': item.pk, 'text': item.text, 'position': item.position, 'completed': item.completed}
+		for item in task.checklist_items.all()
+	]})
+
+
+@household_required
+@require_http_methods(['POST'])
+def checklist_item_update(request, membership, task_id, item_id):
+	item = get_object_or_404(ChecklistItem, pk=item_id, task_id=task_id, task__household=membership.household)
+	if 'text' in request.POST:
+		item.text = request.POST['text'].strip()
+	if 'position' in request.POST:
+		item.position = int(request.POST['position'])
+	if 'completed' in request.POST:
+		item.completed = request.POST['completed'].lower() in ('1', 'true', 'yes')
+	item.save()
+	return JsonResponse({'id': item.pk, 'text': item.text, 'position': item.position, 'completed': item.completed})
