@@ -1,5 +1,6 @@
 import calendar
 from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
@@ -204,11 +205,16 @@ class RecurrenceRule(models.Model):
 	frequency = models.CharField(max_length=20, choices=Frequency.choices)
 	interval_days = models.PositiveIntegerField(null=True, blank=True)
 	weekday = models.PositiveSmallIntegerField(null=True, blank=True)
+	timezone = models.CharField(max_length=64, default='UTC')
 
 	def clean(self):
 		from django.core.exceptions import ValidationError
 
 		super().clean()
+		try:
+			ZoneInfo(self.timezone)
+		except (KeyError, TypeError):
+			raise ValidationError({'timezone': 'Timezone must be a valid IANA timezone.'})
 		if self.frequency == self.Frequency.INTERVAL and not self.interval_days:
 			raise ValidationError({'interval_days': 'An interval must be at least one day.'})
 		if self.frequency != self.Frequency.INTERVAL and self.interval_days:
@@ -217,6 +223,8 @@ class RecurrenceRule(models.Model):
 			raise ValidationError({'weekday': 'A weekday from Monday to Sunday is required.'})
 
 	def next_date(self, start):
+		if hasattr(start, 'date'):
+			start = start.astimezone(ZoneInfo(self.timezone)).date()
 		if self.frequency == self.Frequency.DAILY:
 			return start + timedelta(days=1)
 		if self.frequency == self.Frequency.WEEKLY:

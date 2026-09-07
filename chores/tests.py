@@ -1,4 +1,5 @@
 from datetime import date
+from datetime import datetime, timezone as dt_timezone
 
 from django.contrib import admin
 from django.contrib.auth import authenticate
@@ -291,6 +292,17 @@ class RecurrenceRuleTest(TestCase):
 		rule = RecurrenceRule(task=self.task, frequency=RecurrenceRule.Frequency.INTERVAL)
 		with self.assertRaises(ValidationError):
 			rule.full_clean()
+
+	def test_timezone_is_explicit_and_aware_datetimes_use_it(self):
+		rule = RecurrenceRule(task=self.task, frequency=RecurrenceRule.Frequency.DAILY, timezone='America/New_York')
+		rule.full_clean()
+
+		self.assertEqual(
+			rule.next_date(datetime(2026, 9, 7, 1, tzinfo=dt_timezone.utc)),
+			date(2026, 9, 7),
+		)
+		with self.assertRaises(ValidationError):
+			RecurrenceRule(task=self.task, frequency=RecurrenceRule.Frequency.DAILY, timezone='Not/AZone').full_clean()
 
 
 class TaskOccurrenceTest(TestCase):
