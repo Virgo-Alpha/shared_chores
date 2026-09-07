@@ -478,6 +478,16 @@ class NotificationPreferenceTest(TestCase):
 		Notification.create_for_event(user, 'assignments', task, 'Assigned again')
 		self.assertEqual(Notification.objects.count(), 1)
 
+	def test_event_generation_targets_recipients_and_is_idempotent(self):
+		household = Household.objects.create(name='Generated Events Home')
+		user = User.objects.create_user('generated-event@example.com', 'password')
+		HouseholdMembership.objects.create(user=user, household=household)
+		task = Task.objects.create(household=household, category=household.categories.get(name='Cleaning'), title='Generated task', type=Task.Type.CHORE)
+		TaskAssignment.objects.create(task=task, user=user)
+		self.assertEqual(len(Notification.generate_for_task_event(task, 'assignments', 'Assigned')), 1)
+		self.assertEqual(len(Notification.generate_for_task_event(task, 'assignments', 'Assigned')), 1)
+		self.assertEqual(Notification.objects.count(), 1)
+
 	def test_workload_report_groups_completed_points_by_member(self):
 		household = Household.objects.create(name='Workload Home')
 		user = User.objects.create_user('workload@example.com', 'password')

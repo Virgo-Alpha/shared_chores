@@ -401,6 +401,14 @@ class Notification(models.Model):
 			return None
 		return cls.objects.get_or_create(user=user, task=task, event=event, defaults={'message': message})[0]
 
+	@classmethod
+	def generate_for_task_event(cls, task, event, message=''):
+		if event in ('assignments', 'rotation_changes'):
+			recipients = User.objects.filter(task_assignments__task=task, is_active=True).distinct()
+		else:
+			recipients = User.objects.filter(household_membership__household=task.household, is_active=True)
+		return [notification for user in recipients if (notification := cls.create_for_event(user, event, task, message))]
+
 
 def household_workload(household, start=None, end=None):
 	queryset = Completion.objects.filter(occurrence__task__household=household).select_related('user', 'occurrence__task')
