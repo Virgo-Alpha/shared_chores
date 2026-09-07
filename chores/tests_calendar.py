@@ -2,7 +2,7 @@ from datetime import date, time
 
 from django.test import TestCase
 
-from .models import Household, HouseholdMembership, Task, User
+from .models import Household, HouseholdMembership, Task, TaskOccurrence, User
 
 
 class CalendarTest(TestCase):
@@ -14,3 +14,13 @@ class CalendarTest(TestCase):
 		self.client.force_login(user)
 		response = self.client.get('/calendar/')
 		self.assertEqual(response.json()['events'][0]['time'], '18:30:00')
+
+	def test_calendar_includes_recurring_and_overdue_occurrences(self):
+		household = Household.objects.create(name='Occurrence Calendar Home')
+		user = User.objects.create_user('occ-calendar@example.com', 'password')
+		HouseholdMembership.objects.create(user=user, household=household)
+		task = Task.objects.create(household=household, category=household.categories.get(name='Cleaning'), title='Overdue chore', type=Task.Type.CHORE)
+		TaskOccurrence.objects.create(task=task, scheduled_date=date(2020, 1, 1))
+		self.client.force_login(user)
+		events = self.client.get('/calendar/').json()['events']
+		self.assertTrue(any(event['title'] == 'Overdue chore' and event['overdue'] for event in events))
