@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Category, HouseholdMembership, Task, User
+from .models import Category, HouseholdMembership, Task, TaskAssignment, User
 
 
 @admin.register(User)
@@ -37,3 +37,8 @@ class CategoryAdmin(admin.ModelAdmin):
 class TaskAdmin(admin.ModelAdmin):
 	list_display = ('title', 'household', 'type', 'priority', 'due_date')
 	list_filter = ('type', 'priority', 'household')
+
+
+@admin.register(TaskAssignment)
+class TaskAssignmentAdmin(admin.ModelAdmin):
+	list_display = ('task', 'user')

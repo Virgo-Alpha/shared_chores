@@ -5,7 +5,7 @@ from django.db import IntegrityError
 from django.db import transaction
 from django.test import TestCase
 
-from .models import Category, Household, HouseholdMembership, Task, User
+from .models import Category, Household, HouseholdMembership, Task, TaskAssignment, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -142,6 +142,50 @@ class TaskModelTest(TestCase):
 
 		with self.assertRaises(ValidationError):
 			task.full_clean()
+
+
+class TaskAssignmentTest(TestCase):
+	def setUp(self):
+		self.household = Household.objects.create(name='Assignment Home')
+		self.category = self.household.categories.get(name='Cleaning')
+		self.task = Task.objects.create(
+			household=self.household, category=self.category,
+			title='Assigned task', type=Task.Type.CHORE,
+		)
+		self.first_user = User.objects.create_user('first@example.com', 'password')
+		self.second_user = User.objects.create_user('second@example.com', 'password')
+		for user in (self.first_user, self.second_user):
+			HouseholdMembership.objects.create(user=user, household=self.household)
+
+	def test_single_mode_accepts_one_assignee_only(self):
+		TaskAssignment.objects.create(task=self.task, user=self.first_user)
+		second = TaskAssignment(task=self.task, user=self.second_user)
+
+		with self.assertRaises(ValidationError):
+			second.full_clean()
+
+	def test_joint_and_any_of_allow_multiple_assignees(self):
+		for mode in (Task.AssignmentMode.JOINT, Task.AssignmentMode.ANY_OF):
+			task = Task.objects.create(
+				household=self.household, category=self.category,
+				title=mode, type=Task.Type.CHORE, assignment_mode=mode,
+			)
+			TaskAssignment.objects.create(task=task, user=self.first_user)
+			TaskAssignment.objects.create(task=task, user=self.second_user)
+
+	def test_inactive_and_cross_household_users_are_rejected(self):
+		self.first_user.is_active = False
+		self.first_user.save(update_fields=['is_active'])
+		inactive = TaskAssignment(task=self.task, user=self.first_user)
+		with self.assertRaises(ValidationError):
+			inactive.full_clean()
+
+		other_household = Household.objects.create(name='Other Assignment Home')
+		other_user = User.objects.create_user('other-assignment@example.com', 'password')
+		HouseholdMembership.objects.create(user=other_user, household=other_household)
+		cross_household = TaskAssignment(task=self.task, user=other_user)
+		with self.assertRaises(ValidationError):
+			cross_household.full_clean()
 
 	def test_title_and_type_are_required(self):
 		task = Task(household=self.household, category=self.category)

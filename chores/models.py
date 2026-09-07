@@ -96,12 +96,18 @@ class Task(models.Model):
 		MEDIUM = 'MEDIUM', 'Medium'
 		HIGH = 'HIGH', 'High'
 
+	class AssignmentMode(models.TextChoices):
+		SINGLE = 'SINGLE', 'Single'
+		JOINT = 'JOINT', 'Joint'
+		ANY_OF = 'ANY_OF', 'Any of'
+
 	household = models.ForeignKey(Household, on_delete=models.CASCADE, related_name='tasks')
 	category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name='tasks')
 	title = models.CharField(max_length=200)
 	description = models.TextField(blank=True)
 	type = models.CharField(max_length=10, choices=Type.choices)
 	priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.MEDIUM)
+	assignment_mode = models.CharField(max_length=10, choices=AssignmentMode.choices, default=AssignmentMode.SINGLE)
 	estimated_effort = models.PositiveIntegerField(null=True, blank=True)
 	workload_points = models.PositiveIntegerField(default=0)
 	due_date = models.DateField(null=True, blank=True)
@@ -116,3 +122,29 @@ class Task(models.Model):
 
 	def __str__(self):
 		return self.title
+
+
+class TaskAssignment(models.Model):
+	task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='assignments')
+	user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='task_assignments')
+
+	class Meta:
+		constraints = [
+			models.UniqueConstraint(fields=('task', 'user'), name='unique_task_assignment'),
+		]
+
+	def clean(self):
+		super().clean()
+		membership = getattr(self.user, 'household_membership', None)
+		if not membership or not self.user.is_active or membership.household_id != self.task.household_id:
+			from django.core.exceptions import ValidationError
+
+			raise ValidationError({'user': 'Assignment must target an active member of the task household.'})
+		if self.task.assignment_mode == Task.AssignmentMode.SINGLE:
+			queryset = TaskAssignment.objects.filter(task=self.task)
+			if self.pk:
+				queryset = queryset.exclude(pk=self.pk)
+			if queryset.exists():
+				from django.core.exceptions import ValidationError
+
+				raise ValidationError({'task': 'Single-assignee tasks accept one member.'})
