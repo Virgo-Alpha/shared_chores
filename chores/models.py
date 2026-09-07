@@ -263,3 +263,16 @@ class TaskOccurrence(models.Model):
 	def generate_for_date(cls, task, scheduled_date):
 		occurrence, _ = cls.objects.get_or_create(task=task, scheduled_date=scheduled_date)
 		return occurrence
+
+
+class ChecklistItem(models.Model):
+	task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='checklist_items')
+	text = models.CharField(max_length=300)
+	position = models.PositiveIntegerField(default=0)
+	completed = models.BooleanField(default=False)
+
+	class Meta:
+		ordering = ('position', 'pk')
+
+	def __str__(self):
+		return self.text

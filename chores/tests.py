@@ -8,7 +8,7 @@ from django.db import transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import Category, Household, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
+from .models import Category, ChecklistItem, Household, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -309,6 +309,24 @@ class TaskOccurrenceTest(TestCase):
 		occurrence.completed_at = timezone.now()
 		occurrence.save(update_fields=['completed_at'])
 		self.assertFalse(occurrence.is_overdue)
+
+
+class ChecklistItemTest(TestCase):
+	def test_items_are_ordered_and_can_be_completed_or_reopened(self):
+		household = Household.objects.create(name='Checklist Home')
+		task = Task.objects.create(
+			household=household, category=household.categories.get(name='Cleaning'),
+			title='Clean kitchen', type=Task.Type.CHORE,
+		)
+		last = ChecklistItem.objects.create(task=task, text='Mop floor', position=2)
+		first = ChecklistItem.objects.create(task=task, text='Wipe counters', position=1)
+
+		self.assertEqual(list(task.checklist_items.all()), [first, last])
+		first.completed = True
+		first.save(update_fields=['completed'])
+		first.completed = False
+		first.save(update_fields=['completed'])
+		self.assertFalse(ChecklistItem.objects.get(pk=first.pk).completed)
 
 class HouseholdMembershipTest(TestCase):
 	def setUp(self):
