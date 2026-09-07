@@ -2,9 +2,10 @@ from django.contrib import admin
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
+from django.db import transaction
 from django.test import TestCase
 
-from .models import Household, HouseholdMembership, User
+from .models import Category, Household, HouseholdMembership, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -58,6 +59,41 @@ class HouseholdModelTest(TestCase):
 
 		with self.assertRaises(ValidationError):
 			household.full_clean()
+
+
+class CategoryModelTest(TestCase):
+	def test_new_household_gets_default_categories(self):
+		household = Household.objects.create(name='Category Home')
+
+		self.assertEqual(
+			set(household.categories.values_list('name', flat=True)),
+			set(Category.DEFAULT_NAMES),
+		)
+
+	def test_custom_category_can_be_renamed(self):
+		household = Household.objects.create(name='Category Home')
+		category = Category.objects.create(household=household, name='Pets')
+
+		category.name = 'Pet care'
+		category.save()
+
+		self.assertEqual(Category.objects.get(pk=category.pk).name, 'Pet care')
+
+	def test_duplicate_category_names_are_scoped_to_household(self):
+		household = Household.objects.create(name='Category Home')
+		other_household = Household.objects.create(name='Other Home')
+
+		with self.assertRaises(IntegrityError):
+			with transaction.atomic():
+				Category.objects.create(household=household, name='Cleaning')
+		self.assertTrue(other_household.categories.filter(name='Cleaning').exists())
+
+	def test_category_belongs_to_one_household(self):
+		household = Household.objects.create(name='Category Home')
+		other_household = Household.objects.create(name='Other Home')
+		category = Category.objects.create(household=household, name='Pets')
+
+		self.assertNotIn(category, other_household.categories.all())
 
 
 class HouseholdMembershipTest(TestCase):

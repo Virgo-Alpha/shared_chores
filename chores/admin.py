@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import HouseholdMembership, User
+from .models import Category, HouseholdMembership, User
 
 
 @admin.register(User)
@@ -25,3 +25,9 @@ class CustomUserAdmin(UserAdmin):
 class HouseholdMembershipAdmin(admin.ModelAdmin):
 	list_display = ('user', 'household', 'role')
 	list_filter = ('role',)
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+	list_display = ('name', 'household')
+	list_filter = ('household',)

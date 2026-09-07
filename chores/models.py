@@ -44,6 +44,15 @@ class User(AbstractBaseUser, PermissionsMixin):
 class Household(models.Model):
 	name = models.CharField(max_length=200)
 
+	def save(self, *args, **kwargs):
+		is_new = self._state.adding
+		super().save(*args, **kwargs)
+		if is_new:
+			Category.objects.bulk_create([
+				Category(household=self, name=name)
+				for name in Category.DEFAULT_NAMES
+			])
+
 	def __str__(self):
 		return self.name
 
@@ -60,3 +69,18 @@ class HouseholdMembership(models.Model):
 
 	def __str__(self):
 		return f'{self.user} - {self.household} ({self.get_role_display()})'
+
+
+class Category(models.Model):
+	DEFAULT_NAMES = ('Cleaning', 'Cooking', 'Laundry', 'Shopping', 'Maintenance')
+
+	household = models.ForeignKey(Household, on_delete=models.CASCADE, related_name='categories')
+	name = models.CharField(max_length=100)
+
+	class Meta:
+		constraints = [
+			models.UniqueConstraint(fields=('household', 'name'), name='unique_category_per_household'),
+		]
+
+	def __str__(self):
+		return self.name
