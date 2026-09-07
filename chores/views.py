@@ -158,18 +158,33 @@ def personal_dashboard(request, membership):
 @require_http_methods(['GET'])
 def household_board(request, membership):
 	tasks = Task.objects.filter(household=membership.household).prefetch_related('assignments__user')
-	filters = ('status', 'type', 'category', 'priority')
-	for field in filters:
+	status = request.GET.get('status')
+	if status == 'unassigned':
+		tasks = tasks.filter(assignments__isnull=True)
+	elif status == 'claimable':
+		tasks = tasks.filter(assignment_mode=Task.AssignmentMode.CLAIMABLE)
+	elif status and status not in ('assigned',):
+		return JsonResponse({'error': 'Unknown status filter.'}, status=400)
+	for field in ('type', 'category', 'priority'):
 		value = request.GET.get(field)
 		if value:
-			if field == 'status' and value == 'unassigned':
-				tasks = tasks.filter(assignments__isnull=True)
-			else:
-				tasks = tasks.filter(**{field: value})
-	return JsonResponse({'tasks': [
-		{'id': task.id, 'title': task.title, 'assignees': [a.user.email for a in task.assignments.all()]}
-		for task in tasks.distinct()
-	]})
+			tasks = tasks.filter(**{field: value})
+	tasks = list(tasks.distinct())
+	groups = {'unassigned': [], 'claimable': []}
+	for task in tasks:
+		assignees = [assignment.user.email for assignment in task.assignments.all()]
+		item = {
+			'id': task.id,
+			'title': task.title,
+			'assignees': assignees,
+			'claimable': task.assignment_mode == Task.AssignmentMode.CLAIMABLE,
+		}
+		if not assignees:
+			groups['unassigned'].append(item)
+		else:
+			for assignee in assignees:
+				groups.setdefault(assignee, []).append(item)
+	return JsonResponse({'tasks': [item for items in groups.values() for item in items], 'groups': groups})
 
 
 @household_required

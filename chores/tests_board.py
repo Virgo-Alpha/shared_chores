@@ -13,3 +13,5 @@ class BoardTest(TestCase):
 		response = self.client.get('/board/?type=CHORE')
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(len(response.json()['tasks']), 1)
+		self.assertIn('unassigned', response.json()['groups'])
+		self.assertEqual(self.client.get('/board/?status=unknown').status_code, 400)
