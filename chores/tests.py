@@ -187,6 +187,22 @@ class TaskAssignmentTest(TestCase):
 		with self.assertRaises(ValidationError):
 			cross_household.full_clean()
 
+	def test_round_robin_orders_wraps_and_skips_inactive_members(self):
+		third_user = User.objects.create_user('third@example.com', 'password')
+		HouseholdMembership.objects.create(user=third_user, household=self.household)
+
+		self.assertEqual(self.task.assign_next_member(), self.first_user)
+		self.assertEqual(self.task.assign_next_member(), self.second_user)
+		self.assertEqual(self.task.assign_next_member(), third_user)
+		self.assertEqual(self.task.assign_next_member(), self.first_user)
+
+		self.second_user.is_active = False
+		self.second_user.save(update_fields=['is_active'])
+		self.assertEqual(self.task.assign_next_member(), third_user)
+		self.assertEqual(self.task.assign_next_member(), self.first_user)
+		self.assertEqual(self.task.assign_next_member(), third_user)
+		self.assertEqual(Task.objects.get(pk=self.task.pk).rotation_index, 0)
+
 	def test_title_and_type_are_required(self):
 		task = Task(household=self.household, category=self.category)
 
