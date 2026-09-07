@@ -388,6 +388,23 @@ class ProofAndApprovalTest(TestCase):
 		approval.save(update_fields=['status'])
 		self.assertEqual(Approval.objects.get(pk=approval.pk).status, Approval.Status.APPROVED)
 
+
+class DashboardTest(TestCase):
+	def test_dashboard_is_household_scoped(self):
+		household = Household.objects.create(name='Dashboard Home')
+		user = User.objects.create_user('dashboard@example.com', 'password')
+		HouseholdMembership.objects.create(user=user, household=household)
+		task = Task.objects.create(
+			household=household, category=household.categories.get(name='Cleaning'),
+			title='Assigned dashboard task', type=Task.Type.CHORE, workload_points=3,
+		)
+		TaskAssignment.objects.create(task=task, user=user)
+		self.client.force_login(user)
+		response = self.client.get('/dashboard/')
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()['assigned'], ['Assigned dashboard task'])
+		self.assertEqual(response.json()['workload_points'], 3)
+
 class HouseholdMembershipTest(TestCase):
 	def setUp(self):
 		self.user = User.objects.create_user('member@example.com', 'password')

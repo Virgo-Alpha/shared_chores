@@ -125,3 +125,21 @@ def task_claim(request, membership, task_id):
 	except ValidationError as error:
 		return JsonResponse({'error': error.message}, status=400)
 	return JsonResponse({'task_id': task.pk, 'user': assignment.user.email}, status=201)
+
+
+@household_required
+@require_http_methods(['GET'])
+def personal_dashboard(request, membership):
+	from django.utils import timezone
+
+	tasks = Task.objects.filter(household=membership.household, assignments__user=request.user).distinct()
+	due = tasks.filter(due_date=timezone.localdate())
+	overdue = tasks.filter(due_date__lt=timezone.localdate())
+	completed = tasks.filter(occurrences__completed_at__isnull=False).distinct()
+	return JsonResponse({
+		'assigned': list(tasks.values_list('title', flat=True)),
+		'due': list(due.values_list('title', flat=True)),
+		'overdue': list(overdue.values_list('title', flat=True)),
+		'completed': list(completed.values_list('title', flat=True)),
+		'workload_points': sum(tasks.values_list('workload_points', flat=True)),
+	})
