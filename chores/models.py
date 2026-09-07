@@ -331,6 +331,17 @@ class Approval(models.Model):
 			raise ValidationError({'reviewer': 'Reviewer must belong to the task household.'})
 
 
+class NotificationPreference(models.Model):
+	user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='notification_preferences')
+	upcoming_due = models.BooleanField(default=True)
+	overdue = models.BooleanField(default=True)
+	assignments = models.BooleanField(default=True)
+	rotation_changes = models.BooleanField(default=True)
+	completions = models.BooleanField(default=True)
+	approval_requests = models.BooleanField(default=True)
+	approval_results = models.BooleanField(default=True)
+
+
 def occurrence_is_complete(self):
 	assignments = set(self.task.assignments.values_list('user_id', flat=True))
 	completions = set(self.completions.values_list('user_id', flat=True))

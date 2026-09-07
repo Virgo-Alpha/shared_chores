@@ -8,7 +8,7 @@ from django.db import transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, Household, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
+from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, Household, HouseholdMembership, NotificationPreference, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -387,6 +387,16 @@ class ProofAndApprovalTest(TestCase):
 		approval.status = Approval.Status.APPROVED
 		approval.save(update_fields=['status'])
 		self.assertEqual(Approval.objects.get(pk=approval.pk).status, Approval.Status.APPROVED)
+
+
+class NotificationPreferenceTest(TestCase):
+	def test_preferences_have_defaults_and_can_be_updated(self):
+		user = User.objects.create_user('notifications@example.com', 'password')
+		preferences = NotificationPreference.objects.create(user=user)
+		self.assertTrue(preferences.upcoming_due)
+		preferences.overdue = False
+		preferences.save(update_fields=['overdue'])
+		self.assertFalse(NotificationPreference.objects.get(user=user).overdue)
 
 
 class DashboardTest(TestCase):

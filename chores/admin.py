@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
+from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, HouseholdMembership, NotificationPreference, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
 
 
 @admin.register(User)
@@ -72,3 +72,8 @@ class CompletionProofAdmin(admin.ModelAdmin):
 @admin.register(Approval)
 class ApprovalAdmin(admin.ModelAdmin):
 	list_display = ('completion', 'reviewer', 'status', 'reviewed_at')
+
+
+@admin.register(NotificationPreference)
+class NotificationPreferenceAdmin(admin.ModelAdmin):
+	list_display = ('user', 'upcoming_due', 'overdue', 'assignments')
