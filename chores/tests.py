@@ -498,6 +498,18 @@ class NotificationPreferenceTest(TestCase):
 		Completion.objects.create(occurrence=occurrence, user=user)
 		self.assertEqual(household_workload(household), {'workload@example.com': 4})
 
+	def test_unassigned_completed_work_is_reported_and_endpoint_supports_period(self):
+		household = Household.objects.create(name='Unassigned Work Home')
+		user = User.objects.create_user('unassigned-worker@example.com', 'password')
+		HouseholdMembership.objects.create(user=user, household=household)
+		task = Task.objects.create(household=household, category=household.categories.get(name='Cleaning'), title='Pool task', type=Task.Type.CHORE, workload_points=6)
+		occurrence = TaskOccurrence.objects.create(task=task, scheduled_date=date(2026, 9, 7))
+		completion = Completion(occurrence=occurrence, user=user)
+		completion.full_clean()
+		completion.save()
+		self.client.force_login(user)
+		self.assertEqual(self.client.get('/workload/?start=2026-09-01&end=2026-09-30').json()['workload'], {'unassigned': 6})
+
 
 class DashboardTest(TestCase):
 	def test_dashboard_is_household_scoped(self):

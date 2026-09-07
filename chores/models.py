@@ -312,7 +312,11 @@ class Completion(models.Model):
 		from django.core.exceptions import ValidationError
 
 		assigned = self.occurrence.task.assignments.filter(user=self.user).exists()
-		if not assigned:
+		membership = getattr(self.user, 'household_membership', None)
+		if not assigned and not (
+			membership and membership.household_id == self.occurrence.task.household_id and self.user.is_active
+			and not self.occurrence.task.assignments.exists()
+		):
 			raise ValidationError({'user': 'Only an assigned member can complete this task.'})
 
 	@property
@@ -418,7 +422,8 @@ def household_workload(household, start=None, end=None):
 		queryset = queryset.filter(completed_at__date__lte=end)
 	result = {}
 	for completion in queryset:
-		result[completion.user.email] = result.get(completion.user.email, 0) + completion.task.workload_points
+		key = completion.user.email if completion.task.assignments.exists() else 'unassigned'
+		result[key] = result.get(key, 0) + completion.task.workload_points
 	return result
 
 

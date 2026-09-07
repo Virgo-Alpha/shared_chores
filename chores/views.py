@@ -305,3 +305,16 @@ def notification_preferences(request, membership):
 				setattr(preference, field, value in ('true', '1'))
 		preference.save()
 	return JsonResponse({field: getattr(preference, field) for field in fields})
+
+
+@household_required
+@require_http_methods(['GET'])
+def workload_report(request, membership):
+	from datetime import date
+	from .models import household_workload
+	try:
+		start = date.fromisoformat(request.GET['start']) if request.GET.get('start') else None
+		end = date.fromisoformat(request.GET['end']) if request.GET.get('end') else None
+	except ValueError:
+		return JsonResponse({'error': 'Dates must use YYYY-MM-DD format.'}, status=400)
+	return JsonResponse({'workload': household_workload(membership.household, start, end)})
