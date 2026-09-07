@@ -322,6 +322,15 @@ class TaskOccurrenceTest(TestCase):
 		occurrence.save(update_fields=['completed_at'])
 		self.assertFalse(occurrence.is_overdue)
 
+	def test_next_occurrence_uses_task_recurrence_and_is_idempotent(self):
+		RecurrenceRule.objects.create(task=self.task, frequency=RecurrenceRule.Frequency.DAILY)
+
+		first = TaskOccurrence.generate_next(self.task, date(2026, 9, 7))
+		second = TaskOccurrence.generate_next(self.task, date(2026, 9, 7))
+
+		self.assertEqual(first.scheduled_date, date(2026, 9, 8))
+		self.assertEqual(first.pk, second.pk)
+
 
 class ChecklistItemTest(TestCase):
 	def test_items_are_ordered_and_can_be_completed_or_reopened(self):

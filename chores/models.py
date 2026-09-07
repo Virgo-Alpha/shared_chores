@@ -273,6 +273,14 @@ class TaskOccurrence(models.Model):
 		occurrence, _ = cls.objects.get_or_create(task=task, scheduled_date=scheduled_date)
 		return occurrence
 
+	@classmethod
+	def generate_next(cls, task, from_date):
+		try:
+			recurrence = task.recurrence
+		except RecurrenceRule.DoesNotExist:
+			return None
+		return cls.generate_for_date(task, recurrence.next_date(from_date))
+
 
 class ChecklistItem(models.Model):
 	task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='checklist_items')
