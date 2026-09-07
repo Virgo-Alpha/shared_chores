@@ -119,6 +119,9 @@ class Task(models.Model):
 	workload_points = models.PositiveIntegerField(default=0)
 	due_date = models.DateField(null=True, blank=True)
 	due_time = models.TimeField(null=True, blank=True)
+	require_proof_note = models.BooleanField(default=False)
+	require_proof_photo = models.BooleanField(default=False)
+	require_approval = models.BooleanField(default=False)
 
 	def clean(self):
 		super().clean()
@@ -335,6 +338,11 @@ class CompletionProof(models.Model):
 
 		if not self.note and not self.photo:
 			raise ValidationError('A proof note or photo is required.')
+		task = self.completion.task
+		if task.require_proof_note and not self.note:
+			raise ValidationError({'note': 'A completion note is required.'})
+		if task.require_proof_photo and not self.photo:
+			raise ValidationError({'photo': 'A completion photo is required.'})
 
 
 class Approval(models.Model):
@@ -352,8 +360,15 @@ class Approval(models.Model):
 		from django.core.exceptions import ValidationError
 
 		membership = getattr(self.reviewer, 'household_membership', None)
-		if not membership or membership.household_id != self.completion.task.household_id:
+		if not membership or membership.household_id != self.completion.task.household_id or membership.role != HouseholdMembership.Role.OWNER:
 			raise ValidationError({'reviewer': 'Reviewer must belong to the task household.'})
+
+	def review(self, status):
+		from django.utils import timezone
+
+		self.status = status
+		self.reviewed_at = timezone.now()
+		self.save(update_fields=['status', 'reviewed_at'])
 
 
 class NotificationPreference(models.Model):

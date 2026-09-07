@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 
 from .forms import MemberCreateForm, MemberUpdateForm, TaskForm
-from .models import ChecklistItem, Completion, HouseholdMembership, Task, TaskOccurrence, User
+from .models import Approval, ChecklistItem, Completion, CompletionProof, HouseholdMembership, Task, TaskOccurrence, User
 
 
 def owner_required(view):
@@ -218,3 +218,35 @@ def occurrence_complete(request, membership, occurrence_id):
 	except ValidationError as error:
 		return JsonResponse({'error': error.message_dict if hasattr(error, 'message_dict') else error.messages}, status=400)
 	return JsonResponse({'id': completion.pk, 'completed': occurrence.is_complete}, status=201)
+
+
+@household_required
+@require_http_methods(['POST'])
+def completion_proof(request, membership, completion_id):
+	completion = get_object_or_404(Completion, pk=completion_id, occurrence__task__household=membership.household)
+	if completion.user_id != request.user.pk:
+		return JsonResponse({'error': 'Only the completing member can submit proof.'}, status=403)
+	proof = CompletionProof(completion=completion, note=request.POST.get('note', ''), photo=request.POST.get('photo', ''))
+	try:
+		proof.full_clean()
+		proof.save()
+	except ValidationError as error:
+		return JsonResponse({'errors': error.message_dict if hasattr(error, 'message_dict') else error.messages}, status=400)
+	return JsonResponse({'id': proof.pk}, status=201)
+
+
+@household_required
+@require_http_methods(['POST'])
+def completion_approval(request, membership, completion_id):
+	completion = get_object_or_404(Completion, pk=completion_id, occurrence__task__household=membership.household)
+	approval, _ = Approval.objects.get_or_create(completion=completion, defaults={'reviewer': request.user})
+	approval.reviewer = request.user
+	try:
+		approval.full_clean()
+	except ValidationError as error:
+		return JsonResponse({'errors': error.message_dict}, status=403)
+	status = request.POST.get('status', Approval.Status.PENDING)
+	if status not in Approval.Status.values:
+		return JsonResponse({'error': 'Invalid approval status.'}, status=400)
+	approval.review(status)
+	return JsonResponse({'status': approval.status, 'reviewed_at': approval.reviewed_at.isoformat()})

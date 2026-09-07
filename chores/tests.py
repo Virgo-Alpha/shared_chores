@@ -414,8 +414,8 @@ class ProofAndApprovalTest(TestCase):
 		household = Household.objects.create(name='Approval Home')
 		self.user = User.objects.create_user('proof-user@example.com', 'password')
 		self.reviewer = User.objects.create_user('reviewer@example.com', 'password')
-		for user in (self.user, self.reviewer):
-			HouseholdMembership.objects.create(user=user, household=household)
+		HouseholdMembership.objects.create(user=self.user, household=household)
+		HouseholdMembership.objects.create(user=self.reviewer, household=household, role=HouseholdMembership.Role.OWNER)
 		task = Task.objects.create(
 			household=household, category=household.categories.get(name='Cleaning'),
 			title='Proof task', type=Task.Type.CHORE,
@@ -433,6 +433,18 @@ class ProofAndApprovalTest(TestCase):
 		approval.status = Approval.Status.APPROVED
 		approval.save(update_fields=['status'])
 		self.assertEqual(Approval.objects.get(pk=approval.pk).status, Approval.Status.APPROVED)
+
+	def test_proof_and_approval_endpoints_enforce_roles_and_requirements(self):
+		self.completion.task.require_proof_note = True
+		self.completion.task.require_approval = True
+		self.completion.task.save(update_fields=['require_proof_note', 'require_approval'])
+		self.client.force_login(self.user)
+		self.assertEqual(self.client.post(f'/completions/{self.completion.pk}/proof/').status_code, 400)
+		self.assertEqual(self.client.post(f'/completions/{self.completion.pk}/proof/', {'note': 'Done'}).status_code, 201)
+		self.client.force_login(self.reviewer)
+		response = self.client.post(f'/completions/{self.completion.pk}/approval/', {'status': Approval.Status.APPROVED})
+		self.assertEqual(response.status_code, 200)
+		self.assertIsNotNone(self.completion.approval.reviewed_at)
 
 
 class NotificationPreferenceTest(TestCase):
