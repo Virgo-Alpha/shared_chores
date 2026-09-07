@@ -1,9 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.test import TestCase
 
-from .models import Household, User
+from .models import Household, HouseholdMembership, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -57,3 +58,33 @@ class HouseholdModelTest(TestCase):
 
 		with self.assertRaises(ValidationError):
 			household.full_clean()
+
+
+class HouseholdMembershipTest(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user('member@example.com', 'password')
+		self.household = Household.objects.create(name='The Smith Home')
+
+	def test_membership_connects_user_household_and_role(self):
+		membership = HouseholdMembership.objects.create(
+			user=self.user,
+			household=self.household,
+			role=HouseholdMembership.Role.OWNER,
+		)
+
+		self.assertEqual(self.user.household_membership, membership)
+		self.assertEqual(membership.household, self.household)
+		self.assertEqual(membership.get_role_display(), 'Owner/Admin')
+
+	def test_user_cannot_have_two_memberships(self):
+		HouseholdMembership.objects.create(user=self.user, household=self.household)
+		other_household = Household.objects.create(name='The Jones Home')
+
+		with self.assertRaises(IntegrityError):
+			HouseholdMembership.objects.create(user=self.user, household=other_household)
+
+	def test_invalid_role_is_rejected(self):
+		membership = HouseholdMembership(user=self.user, household=self.household, role='INVALID')
+
+		with self.assertRaises(ValidationError):
+			membership.full_clean()
