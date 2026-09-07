@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     'chores',
 ]
 
+AUTH_USER_MODEL = 'chores.User'
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
