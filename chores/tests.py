@@ -1,3 +1,8 @@
 from django.test import TestCase
 
-# Create your tests here.
+
+class ProjectSmokeTest(TestCase):
+	def test_admin_url_loads(self):
+		response = self.client.get('/admin/')
+
+		self.assertEqual(response.status_code, 302)
