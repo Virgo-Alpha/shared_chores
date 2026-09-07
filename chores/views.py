@@ -1,4 +1,5 @@
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -113,3 +114,14 @@ def task_detail(request, membership, task_id):
 		return JsonResponse({'errors': form.errors}, status=400)
 	task = form.save()
 	return JsonResponse({'id': task.id, 'title': task.title})
+
+
+@household_required
+@require_http_methods(['POST'])
+def task_claim(request, membership, task_id):
+	task = get_object_or_404(Task, pk=task_id, household=membership.household)
+	try:
+		assignment = task.claim(request.user)
+	except ValidationError as error:
+		return JsonResponse({'error': error.message}, status=400)
+	return JsonResponse({'task_id': task.pk, 'user': assignment.user.email}, status=201)

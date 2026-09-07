@@ -187,6 +187,33 @@ class TaskAssignmentTest(TestCase):
 		with self.assertRaises(ValidationError):
 			cross_household.full_clean()
 
+	def test_claimable_task_can_be_claimed_once_by_an_active_member(self):
+		self.task.assignment_mode = Task.AssignmentMode.CLAIMABLE
+		self.task.save(update_fields=['assignment_mode'])
+
+		self.assertEqual(self.task.claim(self.first_user).user, self.first_user)
+		self.assertEqual(self.task.claim(self.first_user).user, self.first_user)
+		with self.assertRaises(ValidationError):
+			self.task.claim(self.second_user)
+
+	def test_claim_rejects_inactive_or_cross_household_users(self):
+		self.task.assignment_mode = Task.AssignmentMode.CLAIMABLE
+		self.task.save(update_fields=['assignment_mode'])
+		self.first_user.is_active = False
+		self.first_user.save(update_fields=['is_active'])
+		with self.assertRaises(ValidationError):
+			self.task.claim(self.first_user)
+
+		other_household = Household.objects.create(name='Claim Other Home')
+		other_user = User.objects.create_user('claim-other@example.com', 'password')
+		HouseholdMembership.objects.create(user=other_user, household=other_household)
+		with self.assertRaises(ValidationError):
+			self.task.claim(other_user)
+
+	def test_non_claimable_task_cannot_be_claimed(self):
+		with self.assertRaises(ValidationError):
+			self.task.claim(self.first_user)
+
 	def test_round_robin_orders_wraps_and_skips_inactive_members(self):
 		third_user = User.objects.create_user('third@example.com', 'password')
 		HouseholdMembership.objects.create(user=third_user, household=self.household)

@@ -9,4 +9,5 @@ urlpatterns = [
 	path('members/<int:user_id>/deactivate/', views.member_deactivate, name='member-deactivate'),
 	path('tasks/', views.task_collection, name='task-collection'),
 	path('tasks/<int:task_id>/', views.task_detail, name='task-detail'),
+	path('tasks/<int:task_id>/claim/', views.task_claim, name='task-claim'),
 ]

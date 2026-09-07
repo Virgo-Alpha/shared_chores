@@ -100,6 +100,7 @@ class Task(models.Model):
 		SINGLE = 'SINGLE', 'Single'
 		JOINT = 'JOINT', 'Joint'
 		ANY_OF = 'ANY_OF', 'Any of'
+		CLAIMABLE = 'CLAIMABLE', 'Claimable pool'
 
 	household = models.ForeignKey(Household, on_delete=models.CASCADE, related_name='tasks')
 	category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name='tasks')
@@ -140,6 +141,24 @@ class Task(models.Model):
 			task.save(update_fields=['rotation_index'])
 			self.rotation_index = task.rotation_index
 			return membership.user
+
+	def claim(self, user):
+		from django.core.exceptions import ValidationError
+		from django.db import transaction
+
+		with transaction.atomic():
+			task = Task.objects.select_for_update().get(pk=self.pk)
+			membership = getattr(user, 'household_membership', None)
+			if task.assignment_mode != self.AssignmentMode.CLAIMABLE:
+				raise ValidationError('Only claimable tasks can be claimed.')
+			if not user.is_active or not membership or membership.household_id != task.household_id:
+				raise ValidationError('Only active household members can claim this task.')
+			assignment = task.assignments.first()
+			if assignment:
+				if assignment.user_id != user.pk:
+					raise ValidationError('This task has already been claimed.')
+				return assignment
+			return TaskAssignment.objects.create(task=task, user=user)
 
 
 class TaskAssignment(models.Model):
