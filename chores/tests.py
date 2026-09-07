@@ -540,9 +540,13 @@ class GamificationTest(TestCase):
 		TaskAssignment.objects.create(task=task, user=user)
 		completion = Completion.objects.create(occurrence=TaskOccurrence.objects.create(task=task, scheduled_date=date(2026, 9, 7)), user=user)
 		self.assertIsNone(PointsLedger.award_for_completion(completion))
+		self.assertIsNone(Streak.update_for_completion(completion))
 		household.gamification_enabled = True
 		household.save(update_fields=['gamification_enabled'])
 		self.assertEqual(PointsLedger.award_for_completion(completion).points, 5)
+		streak = Streak.update_for_completion(completion)
+		self.assertEqual(streak.current, 1)
+		self.assertEqual(Streak.update_for_completion(completion).current, 1)
 
 class HouseholdMembershipTest(TestCase):
 	def setUp(self):

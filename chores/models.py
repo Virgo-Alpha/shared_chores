@@ -329,6 +329,8 @@ class Completion(models.Model):
 		if occurrence.is_complete and occurrence.completed_at is None:
 			occurrence.completed_at = completion.completed_at
 			occurrence.save(update_fields=['completed_at'])
+		PointsLedger.award_for_completion(completion)
+		Streak.update_for_completion(completion)
 		return completion
 
 
@@ -446,6 +448,25 @@ class PointsLedger(models.Model):
 class Streak(models.Model):
 	user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='streak')
 	current = models.PositiveIntegerField(default=0)
+	last_completed_date = models.DateField(null=True, blank=True)
+
+	@classmethod
+	def update_for_completion(cls, completion):
+		from datetime import timedelta
+
+		if not completion.task.household.gamification_enabled:
+			return None
+		streak, _ = cls.objects.get_or_create(user=completion.user)
+		completed_date = completion.completed_at.date()
+		if streak.last_completed_date == completed_date:
+			return streak
+		if streak.last_completed_date == completed_date - timedelta(days=1):
+			streak.current += 1
+		else:
+			streak.current = 1
+		streak.last_completed_date = completed_date
+		streak.save(update_fields=['current', 'last_completed_date'])
+		return streak
 
 
 def occurrence_is_complete(self):
