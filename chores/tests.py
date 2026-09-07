@@ -8,7 +8,7 @@ from django.db import transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, Household, HouseholdMembership, Notification, NotificationPreference, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User, household_workload
+from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, Household, HouseholdMembership, Notification, NotificationPreference, PointsLedger, RecurrenceRule, Streak, Task, TaskAssignment, TaskOccurrence, User, household_workload
 
 
 class ProjectSmokeTest(TestCase):
@@ -436,6 +436,20 @@ class DashboardTest(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.json()['assigned'], ['Assigned dashboard task'])
 		self.assertEqual(response.json()['workload_points'], 3)
+
+
+class GamificationTest(TestCase):
+	def test_points_are_optional(self):
+		household = Household.objects.create(name='Game Home', gamification_enabled=False)
+		user = User.objects.create_user('game@example.com', 'password')
+		HouseholdMembership.objects.create(user=user, household=household)
+		task = Task.objects.create(household=household, category=household.categories.get(name='Cleaning'), title='Points', type=Task.Type.CHORE, workload_points=5)
+		TaskAssignment.objects.create(task=task, user=user)
+		completion = Completion.objects.create(occurrence=TaskOccurrence.objects.create(task=task, scheduled_date=date(2026, 9, 7)), user=user)
+		self.assertIsNone(PointsLedger.award_for_completion(completion))
+		household.gamification_enabled = True
+		household.save(update_fields=['gamification_enabled'])
+		self.assertEqual(PointsLedger.award_for_completion(completion).points, 5)
 
 class HouseholdMembershipTest(TestCase):
 	def setUp(self):

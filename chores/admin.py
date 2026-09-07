@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, HouseholdMembership, Notification, NotificationPreference, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
+from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, HouseholdMembership, Notification, NotificationPreference, PointsLedger, RecurrenceRule, Streak, Task, TaskAssignment, TaskOccurrence, User
 
 
 @admin.register(User)
@@ -82,3 +82,13 @@ class NotificationPreferenceAdmin(admin.ModelAdmin):
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
 	list_display = ('user', 'event', 'task', 'created_at')
+
+
+@admin.register(PointsLedger)
+class PointsLedgerAdmin(admin.ModelAdmin):
+	list_display = ('user', 'points', 'created_at')
+
+
+@admin.register(Streak)
+class StreakAdmin(admin.ModelAdmin):
+	list_display = ('user', 'current')

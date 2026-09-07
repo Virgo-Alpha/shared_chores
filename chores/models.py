@@ -46,6 +46,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 class Household(models.Model):
 	name = models.CharField(max_length=200)
+	gamification_enabled = models.BooleanField(default=False)
 
 	def save(self, *args, **kwargs):
 		is_new = self._state.adding
@@ -372,6 +373,27 @@ def household_workload(household, start=None, end=None):
 	for completion in queryset:
 		result[completion.user.email] = result.get(completion.user.email, 0) + completion.task.workload_points
 	return result
+
+
+class PointsLedger(models.Model):
+	user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='points_ledger')
+	completion = models.OneToOneField(Completion, on_delete=models.CASCADE, related_name='points_entry')
+	points = models.PositiveIntegerField()
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	@classmethod
+	def award_for_completion(cls, completion):
+		if not completion.task.household.gamification_enabled:
+			return None
+		return cls.objects.get_or_create(
+			completion=completion,
+			defaults={'user': completion.user, 'points': completion.task.workload_points},
+		)[0]
+
+
+class Streak(models.Model):
+	user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='streak')
+	current = models.PositiveIntegerField(default=0)
 
 
 def occurrence_is_complete(self):
