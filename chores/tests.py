@@ -1,8 +1,9 @@
 from django.contrib import admin
 from django.contrib.auth import authenticate
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from .models import User
+from .models import Household, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -35,3 +36,24 @@ class UserAuthenticationTest(TestCase):
 
 	def test_custom_user_is_registered_with_admin(self):
 		self.assertIn(User, admin.site._registry)
+
+
+class HouseholdModelTest(TestCase):
+	def test_household_can_be_created_retrieved_updated_and_deleted(self):
+		household = Household.objects.create(name='The Smith Home')
+
+		self.assertEqual(str(household), 'The Smith Home')
+		self.assertEqual(Household.objects.get(pk=household.pk).name, 'The Smith Home')
+
+		household.name = 'The Smith Family Home'
+		household.save()
+		self.assertEqual(Household.objects.get(pk=household.pk).name, 'The Smith Family Home')
+
+		household.delete()
+		self.assertFalse(Household.objects.filter(pk=household.pk).exists())
+
+	def test_household_name_is_required(self):
+		household = Household()
+
+		with self.assertRaises(ValidationError):
+			household.full_clean()
