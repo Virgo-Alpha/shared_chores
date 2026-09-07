@@ -8,7 +8,7 @@ from django.db import transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, Household, HouseholdMembership, Notification, NotificationPreference, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
+from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, Household, HouseholdMembership, Notification, NotificationPreference, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User, household_workload
 
 
 class ProjectSmokeTest(TestCase):
@@ -409,6 +409,16 @@ class NotificationPreferenceTest(TestCase):
 		Notification.create_for_event(user, 'assignments', task, 'Assigned')
 		Notification.create_for_event(user, 'assignments', task, 'Assigned again')
 		self.assertEqual(Notification.objects.count(), 1)
+
+	def test_workload_report_groups_completed_points_by_member(self):
+		household = Household.objects.create(name='Workload Home')
+		user = User.objects.create_user('workload@example.com', 'password')
+		HouseholdMembership.objects.create(user=user, household=household)
+		task = Task.objects.create(household=household, category=household.categories.get(name='Cleaning'), title='Weighted', type=Task.Type.CHORE, workload_points=4)
+		TaskAssignment.objects.create(task=task, user=user)
+		occurrence = TaskOccurrence.objects.create(task=task, scheduled_date=date(2026, 9, 7))
+		Completion.objects.create(occurrence=occurrence, user=user)
+		self.assertEqual(household_workload(household), {'workload@example.com': 4})
 
 
 class DashboardTest(TestCase):

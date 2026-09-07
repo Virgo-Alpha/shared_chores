@@ -362,6 +362,18 @@ class Notification(models.Model):
 		return cls.objects.get_or_create(user=user, task=task, event=event, defaults={'message': message})[0]
 
 
+def household_workload(household, start=None, end=None):
+	queryset = Completion.objects.filter(occurrence__task__household=household).select_related('user', 'occurrence__task')
+	if start:
+		queryset = queryset.filter(completed_at__date__gte=start)
+	if end:
+		queryset = queryset.filter(completed_at__date__lte=end)
+	result = {}
+	for completion in queryset:
+		result[completion.user.email] = result.get(completion.user.email, 0) + completion.task.workload_points
+	return result
+
+
 def occurrence_is_complete(self):
 	assignments = set(self.task.assignments.values_list('user_id', flat=True))
 	completions = set(self.completions.values_list('user_id', flat=True))
