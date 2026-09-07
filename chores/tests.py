@@ -226,3 +226,48 @@ class MemberAdministrationTest(TestCase):
 		)
 
 		self.assertEqual(self.client.post(f'/members/{other_user.pk}/deactivate/').status_code, 404)
+
+
+class TaskAdministrationTest(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user('task-user@example.com', 'password')
+		self.household = Household.objects.create(name='Task Admin Home')
+		HouseholdMembership.objects.create(user=self.user, household=self.household)
+		self.category = self.household.categories.get(name='Cleaning')
+		self.client.force_login(self.user)
+
+	def test_user_can_create_view_edit_and_delete_task(self):
+		response = self.client.post('/tasks/', {
+			'title': 'Wash dishes', 'description': 'After dinner',
+			'type': Task.Type.CHORE, 'priority': Task.Priority.MEDIUM,
+			'category': self.category.pk, 'workload_points': 2,
+		})
+		self.assertEqual(response.status_code, 201)
+		task_id = response.json()['id']
+
+		self.assertEqual(self.client.get(f'/tasks/{task_id}/').status_code, 200)
+		response = self.client.post(f'/tasks/{task_id}/', {
+			'title': 'Wash all dishes', 'type': Task.Type.CHORE,
+			'priority': Task.Priority.HIGH, 'category': self.category.pk,
+		})
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(Task.objects.get(pk=task_id).title, 'Wash all dishes')
+		self.assertEqual(self.client.delete(f'/tasks/{task_id}/').status_code, 204)
+
+	def test_invalid_data_returns_visible_errors(self):
+		response = self.client.post('/tasks/', {'title': '', 'type': 'INVALID', 'priority': 'INVALID'})
+
+		self.assertEqual(response.status_code, 400)
+		self.assertIn('errors', response.json())
+
+	def test_cross_household_task_is_hidden(self):
+		other_household = Household.objects.create(name='Other Task Admin Home')
+		other_category = other_household.categories.get(name='Cleaning')
+		task = Task.objects.create(
+			household=other_household, category=other_category,
+			title='Private task', type=Task.Type.CHORE,
+		)
+
+		self.assertEqual(self.client.get(f'/tasks/{task.pk}/').status_code, 404)
+		self.assertEqual(self.client.post(f'/tasks/{task.pk}/', {'title': 'Changed'}).status_code, 404)
+		self.assertEqual(self.client.delete(f'/tasks/{task.pk}/').status_code, 404)

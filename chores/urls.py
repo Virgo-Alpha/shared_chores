@@ -7,4 +7,6 @@ urlpatterns = [
 	path('members/create/', views.member_create, name='member-create'),
 	path('members/<int:user_id>/update/', views.member_update, name='member-update'),
 	path('members/<int:user_id>/deactivate/', views.member_deactivate, name='member-deactivate'),
+	path('tasks/', views.task_collection, name='task-collection'),
+	path('tasks/<int:task_id>/', views.task_detail, name='task-detail'),
 ]

@@ -4,8 +4,8 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 
-from .forms import MemberCreateForm, MemberUpdateForm
-from .models import HouseholdMembership, User
+from .forms import MemberCreateForm, MemberUpdateForm, TaskForm
+from .models import HouseholdMembership, Task, User
 
 
 def owner_required(view):
@@ -14,6 +14,17 @@ def owner_required(view):
 		membership = getattr(request.user, 'household_membership', None)
 		if not membership or membership.role != HouseholdMembership.Role.OWNER:
 			return JsonResponse({'error': 'Owner/Admin access required.'}, status=403)
+		return view(request, membership, *args, **kwargs)
+
+	return wrapped
+
+
+def household_required(view):
+	@login_required
+	def wrapped(request, *args, **kwargs):
+		membership = getattr(request.user, 'household_membership', None)
+		if not membership or not request.user.is_active:
+			return JsonResponse({'error': 'Household membership required.'}, status=403)
 		return view(request, membership, *args, **kwargs)
 
 	return wrapped
@@ -61,3 +72,44 @@ def member_deactivate(request, membership, user_id):
 	user.is_active = False
 	user.save(update_fields=['is_active'])
 	return JsonResponse({'email': user.email, 'is_active': False})
+
+
+@household_required
+@require_http_methods(['GET', 'POST'])
+def task_collection(request, membership):
+	if request.method == 'GET':
+		tasks = Task.objects.filter(household=membership.household).order_by('id')
+		return JsonResponse({'tasks': [
+			{'id': task.id, 'title': task.title, 'type': task.type, 'priority': task.priority}
+			for task in tasks
+		]})
+
+	form = TaskForm(request.POST, household=membership.household)
+	if not form.is_valid():
+		return JsonResponse({'errors': form.errors}, status=400)
+	task = form.save()
+	return JsonResponse({'id': task.id, 'title': task.title}, status=201)
+
+
+@household_required
+@require_http_methods(['GET', 'POST', 'DELETE'])
+def task_detail(request, membership, task_id):
+	task = get_object_or_404(Task, pk=task_id, household=membership.household)
+	if request.method == 'GET':
+		return JsonResponse({
+			'id': task.id,
+			'title': task.title,
+			'description': task.description,
+			'type': task.type,
+			'priority': task.priority,
+			'category': task.category.name,
+		})
+	if request.method == 'DELETE':
+		task.delete()
+		return JsonResponse({}, status=204)
+
+	form = TaskForm(request.POST, instance=task, household=membership.household)
+	if not form.is_valid():
+		return JsonResponse({'errors': form.errors}, status=400)
+	task = form.save()
+	return JsonResponse({'id': task.id, 'title': task.title})
