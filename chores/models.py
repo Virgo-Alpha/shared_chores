@@ -276,3 +276,36 @@ class ChecklistItem(models.Model):
 
 	def __str__(self):
 		return self.text
+
+
+class Completion(models.Model):
+	occurrence = models.ForeignKey(TaskOccurrence, on_delete=models.CASCADE, related_name='completions')
+	user = models.ForeignKey(User, on_delete=models.PROTECT, related_name='completions')
+	completed_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		constraints = [
+			models.UniqueConstraint(fields=('occurrence', 'user'), name='unique_occurrence_completion'),
+		]
+
+	def clean(self):
+		from django.core.exceptions import ValidationError
+
+		assigned = self.occurrence.task.assignments.filter(user=self.user).exists()
+		if not assigned:
+			raise ValidationError({'user': 'Only an assigned member can complete this task.'})
+
+	@property
+	def task(self):
+		return self.occurrence.task
+
+
+def occurrence_is_complete(self):
+	assignments = set(self.task.assignments.values_list('user_id', flat=True))
+	completions = set(self.completions.values_list('user_id', flat=True))
+	if self.task.assignment_mode == Task.AssignmentMode.JOINT:
+		return assignments <= completions
+	return bool(assignments & completions)
+
+
+TaskOccurrence.is_complete = property(occurrence_is_complete)

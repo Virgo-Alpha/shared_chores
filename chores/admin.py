@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Category, ChecklistItem, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
+from .models import Category, ChecklistItem, Completion, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
 
 
 @admin.register(User)
@@ -57,3 +57,8 @@ class TaskOccurrenceAdmin(admin.ModelAdmin):
 @admin.register(ChecklistItem)
 class ChecklistItemAdmin(admin.ModelAdmin):
 	list_display = ('task', 'position', 'text', 'completed')
+
+
+@admin.register(Completion)
+class CompletionAdmin(admin.ModelAdmin):
+	list_display = ('occurrence', 'user', 'completed_at')

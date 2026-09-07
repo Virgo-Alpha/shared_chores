@@ -8,7 +8,7 @@ from django.db import transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import Category, ChecklistItem, Household, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
+from .models import Category, ChecklistItem, Completion, Household, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -327,6 +327,40 @@ class ChecklistItemTest(TestCase):
 		first.completed = False
 		first.save(update_fields=['completed'])
 		self.assertFalse(ChecklistItem.objects.get(pk=first.pk).completed)
+
+
+class CompletionTest(TestCase):
+	def setUp(self):
+		household = Household.objects.create(name='Completion Home')
+		self.task = Task.objects.create(
+			household=household, category=household.categories.get(name='Cleaning'),
+			title='Complete task', type=Task.Type.CHORE,
+		)
+		self.first_user = User.objects.create_user('completion-one@example.com', 'password')
+		self.second_user = User.objects.create_user('completion-two@example.com', 'password')
+		for user in (self.first_user, self.second_user):
+			HouseholdMembership.objects.create(user=user, household=household)
+			TaskAssignment.objects.create(task=self.task, user=user)
+		self.occurrence = TaskOccurrence.objects.create(task=self.task, scheduled_date=date(2026, 9, 7))
+
+	def test_joint_completion_requires_all_assignees(self):
+		self.task.assignment_mode = Task.AssignmentMode.JOINT
+		self.task.save(update_fields=['assignment_mode'])
+		Completion.objects.create(occurrence=self.occurrence, user=self.first_user)
+		self.assertFalse(self.occurrence.is_complete)
+		Completion.objects.create(occurrence=self.occurrence, user=self.second_user)
+		self.assertTrue(self.occurrence.is_complete)
+
+	def test_any_of_completion_requires_one_assignee(self):
+		self.task.assignment_mode = Task.AssignmentMode.ANY_OF
+		self.task.save(update_fields=['assignment_mode'])
+		Completion.objects.create(occurrence=self.occurrence, user=self.first_user)
+		self.assertTrue(self.occurrence.is_complete)
+
+	def test_unassigned_user_cannot_complete(self):
+		outsider = User.objects.create_user('outsider@example.com', 'password')
+		with self.assertRaises(ValidationError):
+			Completion(occurrence=self.occurrence, user=outsider).full_clean()
 
 class HouseholdMembershipTest(TestCase):
 	def setUp(self):
