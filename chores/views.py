@@ -130,9 +130,16 @@ def task_claim(request, membership, task_id):
 @household_required
 @require_http_methods(['GET'])
 def personal_dashboard(request, membership):
+	from datetime import date
 	from django.utils import timezone
+	from .models import household_workload
 
 	tasks = Task.objects.filter(household=membership.household, assignments__user=request.user).distinct()
+	try:
+		start = date.fromisoformat(request.GET['start']) if request.GET.get('start') else None
+		end = date.fromisoformat(request.GET['end']) if request.GET.get('end') else None
+	except ValueError:
+		return JsonResponse({'error': 'Dates must use YYYY-MM-DD format.'}, status=400)
 	due = tasks.filter(due_date=timezone.localdate())
 	overdue = tasks.filter(due_date__lt=timezone.localdate())
 	completed = tasks.filter(occurrences__completed_at__isnull=False).distinct()
@@ -141,7 +148,9 @@ def personal_dashboard(request, membership):
 		'due': list(due.values_list('title', flat=True)),
 		'overdue': list(overdue.values_list('title', flat=True)),
 		'completed': list(completed.values_list('title', flat=True)),
-		'workload_points': sum(tasks.values_list('workload_points', flat=True)),
+		'workload_points': household_workload(membership.household, start, end).get(request.user.email, 0),
+		'report_start': start.isoformat() if start else None,
+		'report_end': end.isoformat() if end else None,
 	})
 
 

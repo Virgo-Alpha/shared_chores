@@ -493,7 +493,10 @@ class DashboardTest(TestCase):
 		response = self.client.get('/dashboard/')
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.json()['assigned'], ['Assigned dashboard task'])
-		self.assertEqual(response.json()['workload_points'], 3)
+		self.assertEqual(response.json()['workload_points'], 0)
+		response = self.client.get('/dashboard/?start=2026-09-01&end=2026-09-30')
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()['report_start'], '2026-09-01')
 
 
 class GamificationTest(TestCase):
