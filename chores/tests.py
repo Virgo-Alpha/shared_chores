@@ -5,7 +5,7 @@ from django.db import IntegrityError
 from django.db import transaction
 from django.test import TestCase
 
-from .models import Category, Household, HouseholdMembership, User
+from .models import Category, Household, HouseholdMembership, Task, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -94,6 +94,60 @@ class CategoryModelTest(TestCase):
 		category = Category.objects.create(household=household, name='Pets')
 
 		self.assertNotIn(category, other_household.categories.all())
+
+
+class TaskModelTest(TestCase):
+	def setUp(self):
+		self.household = Household.objects.create(name='Task Home')
+		self.category = self.household.categories.get(name='Cleaning')
+
+	def test_task_stores_required_and_optional_fields(self):
+		task = Task.objects.create(
+			household=self.household,
+			category=self.category,
+			title='Clean kitchen',
+			description='Wipe surfaces and mop the floor.',
+			type=Task.Type.CHORE,
+			priority=Task.Priority.HIGH,
+			estimated_effort=45,
+			workload_points=5,
+			due_date='2026-09-07',
+			due_time='18:30',
+		)
+
+		self.assertEqual(str(task), 'Clean kitchen')
+		self.assertEqual(Task.objects.get(pk=task.pk).workload_points, 5)
+
+	def test_task_accepts_both_types_and_priorities(self):
+		for task_type in Task.Type.values:
+			for priority in Task.Priority.values:
+				task = Task(
+					household=self.household,
+					category=self.category,
+					title=f'{task_type}-{priority}',
+					type=task_type,
+					priority=priority,
+				)
+				task.full_clean()
+
+	def test_invalid_choices_and_cross_household_category_are_rejected(self):
+		other_household = Household.objects.create(name='Other Task Home')
+		task = Task(
+			household=self.household,
+			category=other_household.categories.get(name='Cleaning'),
+			title='Invalid task',
+			type='INVALID',
+			priority='INVALID',
+		)
+
+		with self.assertRaises(ValidationError):
+			task.full_clean()
+
+	def test_title_and_type_are_required(self):
+		task = Task(household=self.household, category=self.category)
+
+		with self.assertRaises(ValidationError):
+			task.full_clean()
 
 
 class HouseholdMembershipTest(TestCase):

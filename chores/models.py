@@ -84,3 +84,35 @@ class Category(models.Model):
 
 	def __str__(self):
 		return self.name
+
+
+class Task(models.Model):
+	class Type(models.TextChoices):
+		CHORE = 'CHORE', 'Chore'
+		ONE_OFF = 'ONE_OFF', 'One-off'
+
+	class Priority(models.TextChoices):
+		LOW = 'LOW', 'Low'
+		MEDIUM = 'MEDIUM', 'Medium'
+		HIGH = 'HIGH', 'High'
+
+	household = models.ForeignKey(Household, on_delete=models.CASCADE, related_name='tasks')
+	category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name='tasks')
+	title = models.CharField(max_length=200)
+	description = models.TextField(blank=True)
+	type = models.CharField(max_length=10, choices=Type.choices)
+	priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.MEDIUM)
+	estimated_effort = models.PositiveIntegerField(null=True, blank=True)
+	workload_points = models.PositiveIntegerField(default=0)
+	due_date = models.DateField(null=True, blank=True)
+	due_time = models.TimeField(null=True, blank=True)
+
+	def clean(self):
+		super().clean()
+		if self.category_id and self.household_id and self.category.household_id != self.household_id:
+			from django.core.exceptions import ValidationError
+
+			raise ValidationError({'category': 'Category must belong to the task household.'})
+
+	def __str__(self):
+		return self.title
