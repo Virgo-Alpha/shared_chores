@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.contrib import admin
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
@@ -5,7 +7,7 @@ from django.db import IntegrityError
 from django.db import transaction
 from django.test import TestCase
 
-from .models import Category, Household, HouseholdMembership, Task, TaskAssignment, User
+from .models import Category, Household, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -143,6 +145,12 @@ class TaskModelTest(TestCase):
 		with self.assertRaises(ValidationError):
 			task.full_clean()
 
+	def test_title_and_type_are_required(self):
+		task = Task(household=self.household, category=self.category)
+
+		with self.assertRaises(ValidationError):
+			task.full_clean()
+
 
 class TaskAssignmentTest(TestCase):
 	def setUp(self):
@@ -230,12 +238,58 @@ class TaskAssignmentTest(TestCase):
 		self.assertEqual(self.task.assign_next_member(), third_user)
 		self.assertEqual(Task.objects.get(pk=self.task.pk).rotation_index, 0)
 
-	def test_title_and_type_are_required(self):
-		task = Task(household=self.household, category=self.category)
+	def test_claimable_task_can_be_claimed_once_by_an_active_member(self):
+		self.task.assignment_mode = Task.AssignmentMode.CLAIMABLE
+		self.task.save(update_fields=['assignment_mode'])
 
+		self.assertEqual(self.task.claim(self.first_user).user, self.first_user)
+		self.assertEqual(self.task.claim(self.first_user).user, self.first_user)
 		with self.assertRaises(ValidationError):
-			task.full_clean()
+			self.task.claim(self.second_user)
 
+	def test_claim_rejects_inactive_or_cross_household_users(self):
+		self.task.assignment_mode = Task.AssignmentMode.CLAIMABLE
+		self.task.save(update_fields=['assignment_mode'])
+		self.first_user.is_active = False
+		self.first_user.save(update_fields=['is_active'])
+		with self.assertRaises(ValidationError):
+			self.task.claim(self.first_user)
+
+
+class RecurrenceRuleTest(TestCase):
+	def setUp(self):
+		household = Household.objects.create(name='Recurrence Home')
+		self.task = Task.objects.create(
+			household=household, category=household.categories.get(name='Cleaning'),
+			title='Recurring task', type=Task.Type.CHORE,
+		)
+
+	def test_supported_rules_calculate_next_dates(self):
+		cases = [
+			(RecurrenceRule.Frequency.DAILY, {}, date(2026, 9, 8)),
+			(RecurrenceRule.Frequency.WEEKLY, {}, date(2026, 9, 14)),
+			(RecurrenceRule.Frequency.MONTHLY, {}, date(2026, 10, 7)),
+			(RecurrenceRule.Frequency.INTERVAL, {'interval_days': 3}, date(2026, 9, 10)),
+			(RecurrenceRule.Frequency.WEEKDAYS, {}, date(2026, 9, 8)),
+		]
+		for frequency, fields, expected in cases:
+			rule = RecurrenceRule(task=self.task, frequency=frequency, **fields)
+			rule.full_clean()
+			self.assertEqual(rule.next_date(date(2026, 9, 7)), expected)
+
+	def test_first_weekday_of_next_month(self):
+		rule = RecurrenceRule(
+			task=self.task,
+			frequency=RecurrenceRule.Frequency.MONTHLY_WEEKDAY,
+			weekday=5,
+		)
+
+		self.assertEqual(rule.next_date(date(2026, 9, 7)), date(2026, 10, 3))
+
+	def test_invalid_rule_parameters_are_rejected(self):
+		rule = RecurrenceRule(task=self.task, frequency=RecurrenceRule.Frequency.INTERVAL)
+		with self.assertRaises(ValidationError):
+			rule.full_clean()
 
 class HouseholdMembershipTest(TestCase):
 	def setUp(self):

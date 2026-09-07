@@ -1,3 +1,6 @@
+import calendar
+from datetime import date, timedelta
+
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
@@ -185,3 +188,56 @@ class TaskAssignment(models.Model):
 				from django.core.exceptions import ValidationError
 
 				raise ValidationError({'task': 'Single-assignee tasks accept one member.'})
+
+
+class RecurrenceRule(models.Model):
+	class Frequency(models.TextChoices):
+		DAILY = 'DAILY', 'Daily'
+		WEEKLY = 'WEEKLY', 'Weekly'
+		MONTHLY = 'MONTHLY', 'Monthly'
+		INTERVAL = 'INTERVAL', 'Every N days'
+		WEEKDAYS = 'WEEKDAYS', 'Weekdays'
+		MONTHLY_WEEKDAY = 'MONTHLY_WEEKDAY', 'First weekday of month'
+
+	task = models.OneToOneField(Task, on_delete=models.CASCADE, related_name='recurrence')
+	frequency = models.CharField(max_length=20, choices=Frequency.choices)
+	interval_days = models.PositiveIntegerField(null=True, blank=True)
+	weekday = models.PositiveSmallIntegerField(null=True, blank=True)
+
+	def clean(self):
+		from django.core.exceptions import ValidationError
+
+		super().clean()
+		if self.frequency == self.Frequency.INTERVAL and not self.interval_days:
+			raise ValidationError({'interval_days': 'An interval must be at least one day.'})
+		if self.frequency != self.Frequency.INTERVAL and self.interval_days:
+			raise ValidationError({'interval_days': 'Intervals are only valid for interval rules.'})
+		if self.frequency == self.Frequency.MONTHLY_WEEKDAY and self.weekday not in range(7):
+			raise ValidationError({'weekday': 'A weekday from Monday to Sunday is required.'})
+
+	def next_date(self, start):
+		if self.frequency == self.Frequency.DAILY:
+			return start + timedelta(days=1)
+		if self.frequency == self.Frequency.WEEKLY:
+			return start + timedelta(days=7)
+		if self.frequency == self.Frequency.MONTHLY:
+			month = start.month % 12 + 1
+			year = start.year + (start.month == 12)
+			return date(year, month, min(start.day, calendar.monthrange(year, month)[1]))
+		if self.frequency == self.Frequency.INTERVAL:
+			return start + timedelta(days=self.interval_days)
+		if self.frequency == self.Frequency.WEEKDAYS:
+			candidate = start + timedelta(days=1)
+			while candidate.weekday() >= 5:
+				candidate += timedelta(days=1)
+			return candidate
+		first = date(start.year, start.month, 1)
+		while first.weekday() != self.weekday:
+			first += timedelta(days=1)
+		if first <= start:
+			month = start.month % 12 + 1
+			year = start.year + (start.month == 12)
+			first = date(year, month, 1)
+			while first.weekday() != self.weekday:
+				first += timedelta(days=1)
+		return first
