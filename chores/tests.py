@@ -88,3 +88,51 @@ class HouseholdMembershipTest(TestCase):
 
 		with self.assertRaises(ValidationError):
 			membership.full_clean()
+
+
+class MemberAdministrationTest(TestCase):
+	def setUp(self):
+		self.client_owner = User.objects.create_user('owner@example.com', 'password')
+		self.owner_household = Household.objects.create(name='Owner Home')
+		HouseholdMembership.objects.create(
+			user=self.client_owner,
+			household=self.owner_household,
+			role=HouseholdMembership.Role.OWNER,
+		)
+		self.client.force_login(self.client_owner)
+
+	def test_owner_can_create_and_deactivate_member(self):
+		response = self.client.post('/members/create/', {
+			'email': 'new@example.com',
+			'password': 'new-password',
+			'role': HouseholdMembership.Role.MEMBER,
+		})
+
+		self.assertEqual(response.status_code, 201)
+		member = User.objects.get(email='new@example.com')
+		self.assertTrue(self.client.post(f'/members/{member.pk}/deactivate/').json()['is_active'] is False)
+		self.assertFalse(User.objects.get(pk=member.pk).is_active)
+		self.assertIsNone(authenticate(email=member.email, password='new-password'))
+
+	def test_non_owner_is_denied(self):
+		member = User.objects.create_user('member@example.com', 'password')
+		HouseholdMembership.objects.create(
+			user=member,
+			household=self.owner_household,
+			role=HouseholdMembership.Role.MEMBER,
+		)
+		self.client.force_login(member)
+
+		self.assertEqual(self.client.get('/members/').status_code, 403)
+		self.assertEqual(self.client.post('/members/create/').status_code, 403)
+
+	def test_owner_cannot_manage_another_household(self):
+		other_user = User.objects.create_user('other@example.com', 'password')
+		other_household = Household.objects.create(name='Other Home')
+		HouseholdMembership.objects.create(
+			user=other_user,
+			household=other_household,
+			role=HouseholdMembership.Role.MEMBER,
+		)
+
+		self.assertEqual(self.client.post(f'/members/{other_user.pk}/deactivate/').status_code, 404)
