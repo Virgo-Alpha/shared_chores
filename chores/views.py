@@ -143,3 +143,21 @@ def personal_dashboard(request, membership):
 		'completed': list(completed.values_list('title', flat=True)),
 		'workload_points': sum(tasks.values_list('workload_points', flat=True)),
 	})
+
+
+@household_required
+@require_http_methods(['GET'])
+def household_board(request, membership):
+	tasks = Task.objects.filter(household=membership.household).prefetch_related('assignments__user')
+	filters = ('status', 'type', 'category', 'priority')
+	for field in filters:
+		value = request.GET.get(field)
+		if value:
+			if field == 'status' and value == 'unassigned':
+				tasks = tasks.filter(assignments__isnull=True)
+			else:
+				tasks = tasks.filter(**{field: value})
+	return JsonResponse({'tasks': [
+		{'id': task.id, 'title': task.title, 'assignees': [a.user.email for a in task.assignments.all()]}
+		for task in tasks.distinct()
+	]})
