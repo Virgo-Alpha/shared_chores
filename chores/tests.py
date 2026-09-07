@@ -8,7 +8,7 @@ from django.db import transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, Household, HouseholdMembership, NotificationPreference, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
+from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, Household, HouseholdMembership, Notification, NotificationPreference, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -397,6 +397,18 @@ class NotificationPreferenceTest(TestCase):
 		preferences.overdue = False
 		preferences.save(update_fields=['overdue'])
 		self.assertFalse(NotificationPreference.objects.get(user=user).overdue)
+
+	def test_notifications_respect_preferences_and_are_idempotent(self):
+		user = User.objects.create_user('event@example.com', 'password')
+		household = Household.objects.create(name='Event Home')
+		task = Task.objects.create(household=household, category=household.categories.get(name='Cleaning'), title='Event task', type=Task.Type.CHORE)
+		NotificationPreference.objects.create(user=user, assignments=False)
+		self.assertIsNone(Notification.create_for_event(user, 'assignments', task, 'Assigned'))
+		user.notification_preferences.assignments = True
+		user.notification_preferences.save(update_fields=['assignments'])
+		Notification.create_for_event(user, 'assignments', task, 'Assigned')
+		Notification.create_for_event(user, 'assignments', task, 'Assigned again')
+		self.assertEqual(Notification.objects.count(), 1)
 
 
 class DashboardTest(TestCase):

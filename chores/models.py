@@ -342,6 +342,26 @@ class NotificationPreference(models.Model):
 	approval_results = models.BooleanField(default=True)
 
 
+class Notification(models.Model):
+	user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+	task = models.ForeignKey(Task, on_delete=models.CASCADE, null=True, blank=True, related_name='notifications')
+	event = models.CharField(max_length=40)
+	message = models.CharField(max_length=300)
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		constraints = [
+			models.UniqueConstraint(fields=('user', 'task', 'event'), name='unique_task_notification'),
+		]
+
+	@classmethod
+	def create_for_event(cls, user, event, task=None, message=''):
+		preferences = getattr(user, 'notification_preferences', None)
+		if preferences and not getattr(preferences, event, True):
+			return None
+		return cls.objects.get_or_create(user=user, task=task, event=event, defaults={'message': message})[0]
+
+
 def occurrence_is_complete(self):
 	assignments = set(self.task.assignments.values_list('user_id', flat=True))
 	completions = set(self.completions.values_list('user_id', flat=True))
