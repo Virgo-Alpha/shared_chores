@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 
 from .forms import MemberCreateForm, MemberUpdateForm, TaskForm
-from .models import Approval, ChecklistItem, Completion, CompletionProof, HouseholdMembership, Task, TaskOccurrence, User
+from .models import Approval, ChecklistItem, Completion, CompletionProof, HouseholdMembership, NotificationPreference, Task, TaskOccurrence, User
 
 
 def owner_required(view):
@@ -283,3 +283,25 @@ def completion_approval(request, membership, completion_id):
 		return JsonResponse({'error': 'Invalid approval status.'}, status=400)
 	approval.review(status)
 	return JsonResponse({'status': approval.status, 'reviewed_at': approval.reviewed_at.isoformat()})
+
+
+@household_required
+@require_http_methods(['GET', 'POST'])
+def notification_preferences(request, membership):
+	preference, _ = NotificationPreference.objects.get_or_create(user=request.user)
+	fields = (
+		'upcoming_due', 'overdue', 'assignments', 'rotation_changes',
+		'completions', 'approval_requests', 'approval_results',
+	)
+	if request.method == 'POST':
+		unknown = set(request.POST) - set(fields)
+		if unknown:
+			return JsonResponse({'error': 'Unknown notification preference.'}, status=400)
+		for field in fields:
+			if field in request.POST:
+				value = request.POST[field].lower()
+				if value not in ('true', 'false', '1', '0'):
+					return JsonResponse({'error': 'Preference values must be boolean.'}, status=400)
+				setattr(preference, field, value in ('true', '1'))
+		preference.save()
+	return JsonResponse({field: getattr(preference, field) for field in fields})

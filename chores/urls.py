@@ -18,4 +18,5 @@ urlpatterns = [
 	path('occurrences/<int:occurrence_id>/complete/', views.occurrence_complete, name='occurrence-complete'),
 	path('completions/<int:completion_id>/proof/', views.completion_proof, name='completion-proof'),
 	path('completions/<int:completion_id>/approval/', views.completion_approval, name='completion-approval'),
+	path('notification-preferences/', views.notification_preferences, name='notification-preferences'),
 ]

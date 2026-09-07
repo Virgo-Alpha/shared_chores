@@ -456,6 +456,16 @@ class NotificationPreferenceTest(TestCase):
 		preferences.save(update_fields=['overdue'])
 		self.assertFalse(NotificationPreference.objects.get(user=user).overdue)
 
+	def test_preferences_endpoint_defaults_updates_and_rejects_unknown_fields(self):
+		user = User.objects.create_user('preferences-api@example.com', 'password')
+		household = Household.objects.create(name='Preferences API Home')
+		HouseholdMembership.objects.create(user=user, household=household)
+		self.client.force_login(user)
+		self.assertTrue(self.client.get('/notification-preferences/').json()['upcoming_due'])
+		self.assertEqual(self.client.post('/notification-preferences/', {'overdue': 'false'}).status_code, 200)
+		self.assertFalse(self.client.get('/notification-preferences/').json()['overdue'])
+		self.assertEqual(self.client.post('/notification-preferences/', {'unknown': 'true'}).status_code, 400)
+
 	def test_notifications_respect_preferences_and_are_idempotent(self):
 		user = User.objects.create_user('event@example.com', 'password')
 		household = Household.objects.create(name='Event Home')
