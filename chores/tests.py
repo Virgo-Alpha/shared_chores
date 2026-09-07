@@ -8,7 +8,7 @@ from django.db import transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import Category, ChecklistItem, Completion, Household, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
+from .models import Approval, Category, ChecklistItem, Completion, CompletionProof, Household, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -361,6 +361,32 @@ class CompletionTest(TestCase):
 		outsider = User.objects.create_user('outsider@example.com', 'password')
 		with self.assertRaises(ValidationError):
 			Completion(occurrence=self.occurrence, user=outsider).full_clean()
+
+
+class ProofAndApprovalTest(TestCase):
+	def setUp(self):
+		household = Household.objects.create(name='Approval Home')
+		self.user = User.objects.create_user('proof-user@example.com', 'password')
+		self.reviewer = User.objects.create_user('reviewer@example.com', 'password')
+		for user in (self.user, self.reviewer):
+			HouseholdMembership.objects.create(user=user, household=household)
+		task = Task.objects.create(
+			household=household, category=household.categories.get(name='Cleaning'),
+			title='Proof task', type=Task.Type.CHORE,
+		)
+		TaskAssignment.objects.create(task=task, user=self.user)
+		occurrence = TaskOccurrence.objects.create(task=task, scheduled_date=date(2026, 9, 7))
+		self.completion = Completion.objects.create(occurrence=occurrence, user=self.user)
+
+	def test_proof_requires_note_or_photo_and_approval_can_be_recorded(self):
+		with self.assertRaises(ValidationError):
+			CompletionProof(completion=self.completion).full_clean()
+		proof = CompletionProof.objects.create(completion=self.completion, note='Done')
+		self.assertEqual(proof.note, 'Done')
+		approval = Approval.objects.create(completion=self.completion, reviewer=self.reviewer)
+		approval.status = Approval.Status.APPROVED
+		approval.save(update_fields=['status'])
+		self.assertEqual(Approval.objects.get(pk=approval.pk).status, Approval.Status.APPROVED)
 
 class HouseholdMembershipTest(TestCase):
 	def setUp(self):

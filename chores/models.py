@@ -300,6 +300,37 @@ class Completion(models.Model):
 		return self.occurrence.task
 
 
+class CompletionProof(models.Model):
+	completion = models.OneToOneField(Completion, on_delete=models.CASCADE, related_name='proof')
+	note = models.TextField(blank=True)
+	photo = models.CharField(max_length=500, blank=True)
+
+	def clean(self):
+		from django.core.exceptions import ValidationError
+
+		if not self.note and not self.photo:
+			raise ValidationError('A proof note or photo is required.')
+
+
+class Approval(models.Model):
+	class Status(models.TextChoices):
+		PENDING = 'PENDING', 'Pending'
+		APPROVED = 'APPROVED', 'Approved'
+		REJECTED = 'REJECTED', 'Rejected'
+
+	completion = models.OneToOneField(Completion, on_delete=models.CASCADE, related_name='approval')
+	reviewer = models.ForeignKey(User, on_delete=models.PROTECT, related_name='approvals')
+	status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+	reviewed_at = models.DateTimeField(null=True, blank=True)
+
+	def clean(self):
+		from django.core.exceptions import ValidationError
+
+		membership = getattr(self.reviewer, 'household_membership', None)
+		if not membership or membership.household_id != self.completion.task.household_id:
+			raise ValidationError({'reviewer': 'Reviewer must belong to the task household.'})
+
+
 def occurrence_is_complete(self):
 	assignments = set(self.task.assignments.values_list('user_id', flat=True))
 	completions = set(self.completions.values_list('user_id', flat=True))
