@@ -5,9 +5,10 @@ from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db import transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.utils import timezone
 
-from .models import Category, Household, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, User
+from .models import Category, Household, HouseholdMembership, RecurrenceRule, Task, TaskAssignment, TaskOccurrence, User
 
 
 class ProjectSmokeTest(TestCase):
@@ -290,6 +291,24 @@ class RecurrenceRuleTest(TestCase):
 		rule = RecurrenceRule(task=self.task, frequency=RecurrenceRule.Frequency.INTERVAL)
 		with self.assertRaises(ValidationError):
 			rule.full_clean()
+
+
+class TaskOccurrenceTest(TestCase):
+	def setUp(self):
+		household = Household.objects.create(name='Occurrence Home')
+		self.task = Task.objects.create(
+			household=household, category=household.categories.get(name='Cleaning'),
+			title='Recurring task', type=Task.Type.CHORE,
+		)
+
+	@override_settings(USE_TZ=True)
+	def test_occurrence_is_idempotent_and_overdue_until_completed(self):
+		occurrence = TaskOccurrence.generate_for_date(self.task, date(2020, 1, 1))
+		self.assertTrue(occurrence.is_overdue)
+		self.assertEqual(TaskOccurrence.generate_for_date(self.task, date(2020, 1, 1)).pk, occurrence.pk)
+		occurrence.completed_at = timezone.now()
+		occurrence.save(update_fields=['completed_at'])
+		self.assertFalse(occurrence.is_overdue)
 
 class HouseholdMembershipTest(TestCase):
 	def setUp(self):

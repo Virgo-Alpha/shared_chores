@@ -241,3 +241,25 @@ class RecurrenceRule(models.Model):
 			while first.weekday() != self.weekday:
 				first += timedelta(days=1)
 		return first
+
+
+class TaskOccurrence(models.Model):
+	task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='occurrences')
+	scheduled_date = models.DateField()
+	completed_at = models.DateTimeField(null=True, blank=True)
+
+	class Meta:
+		constraints = [
+			models.UniqueConstraint(fields=('task', 'scheduled_date'), name='unique_task_occurrence'),
+		]
+
+	@property
+	def is_overdue(self):
+		from django.utils import timezone
+
+		return self.completed_at is None and self.scheduled_date < timezone.localdate()
+
+	@classmethod
+	def generate_for_date(cls, task, scheduled_date):
+		occurrence, _ = cls.objects.get_or_create(task=task, scheduled_date=scheduled_date)
+		return occurrence
